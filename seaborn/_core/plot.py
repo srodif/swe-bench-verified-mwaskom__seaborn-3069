@@ -1627,10 +1627,16 @@ class Plotter:
 
     def _finalize_figure(self, p: Plot) -> None:
 
+        from seaborn._core.scales import Nominal
+
         for sub in self._subplots:
             ax = sub["ax"]
             for axis in "xy":
                 axis_key = sub[axis]
+
+                # Check if this axis uses a Nominal scale
+                scale = self._scales.get(axis_key)
+                is_nominal = isinstance(scale, Nominal)
 
                 # Axis limits
                 if axis_key in p._limits:
@@ -1643,6 +1649,24 @@ class Plotter:
                     if isinstance(b, str):
                         hi = cast(float, hi) + 0.5
                     ax.set(**{f"{axis}lim": (lo, hi)})
+                
+                # Apply categorical-like behavior for Nominal scales
+                elif is_nominal:
+                    # Get the number of ticks to determine the range
+                    # Following the same approach as categorical plots
+                    ticks = getattr(ax, f"get_{axis}ticks")()
+                    n_ticks = len(ticks)
+                    if n_ticks > 0:
+                        if axis == "x":
+                            ax.set_xlim(-.5, n_ticks - .5, auto=None)
+                        else:
+                            # For y-axis, set limits like categorical plots
+                            # Note: this creates the proper categorical appearance
+                            ax.set_ylim(n_ticks - .5, -.5, auto=None)
+
+                # Disable grid for Nominal scales (like categorical plots)
+                if is_nominal:
+                    getattr(ax, f"{axis}axis").grid(False)
 
         engine_default = None if p._target is not None else "tight"
         layout_engine = p._layout_spec.get("engine", engine_default)
