@@ -2010,3 +2010,100 @@ class TestDefaultObject:
     def test_default_repr(self):
 
         assert repr(Default()) == "<default>"
+
+
+class TestNominalCategoricalBehavior:
+    """Test that Nominal scales exhibit the same three behaviors as categorical plots."""
+
+    @pytest.fixture
+    def categorical_data(self):
+        """Sample categorical data for testing."""
+        return pd.DataFrame({
+            'category': ['A', 'B', 'C', 'D'],
+            'value': [10, 20, 15, 25]
+        })
+
+    def test_nominal_x_axis_limits(self, categorical_data):
+        """Test that Nominal x-axis sets limits to +/- 0.5 from first and last tick."""
+        p = Plot(categorical_data, x="category", y="value").scale(x=Nominal()).add(MockMark()).plot()
+        ax = p._figure.axes[0]
+        
+        xlim = ax.get_xlim()
+        # For 4 categories (indices 0, 1, 2, 3), expect limits (-0.5, 3.5)
+        assert xlim == pytest.approx((-0.5, 3.5), abs=0.01)
+
+    def test_nominal_y_axis_limits_and_inversion(self, categorical_data):
+        """Test that Nominal y-axis sets inverted limits to +/- 0.5 from first and last tick."""
+        p = Plot(categorical_data, x="value", y="category").scale(y=Nominal()).add(MockMark()).plot()
+        ax = p._figure.axes[0]
+        
+        ylim = ax.get_ylim()
+        # For 4 categories (indices 0, 1, 2, 3), expect inverted limits (3.5, -0.5)
+        assert ylim == pytest.approx((3.5, -0.5), abs=0.01)
+
+    def test_nominal_x_axis_grid_disabled(self, categorical_data):
+        """Test that grid is disabled on x-axis when using Nominal scale."""
+        p = Plot(categorical_data, x="category", y="value").scale(x=Nominal()).add(MockMark()).plot()
+        ax = p._figure.axes[0]
+        
+        # Check if grid is disabled
+        x_grid_lines = ax.xaxis.get_gridlines()
+        x_grid_visible = any(line.get_visible() for line in x_grid_lines)
+        assert x_grid_visible is False
+
+    def test_nominal_y_axis_grid_disabled(self, categorical_data):
+        """Test that grid is disabled on y-axis when using Nominal scale."""
+        p = Plot(categorical_data, x="value", y="category").scale(y=Nominal()).add(MockMark()).plot()
+        ax = p._figure.axes[0]
+        
+        # Check if grid is disabled
+        y_grid_lines = ax.yaxis.get_gridlines()
+        y_grid_visible = any(line.get_visible() for line in y_grid_lines)
+        assert y_grid_visible is False
+
+    def test_continuous_scale_has_grid_enabled(self, categorical_data):
+        """Test that continuous scales still have grid enabled (regression test)."""
+        p = Plot(categorical_data, x="value", y="value").add(MockMark()).plot()
+        ax = p._figure.axes[0]
+        
+        # Check that continuous scale has grid enabled
+        x_grid_lines = ax.xaxis.get_gridlines()
+        x_grid_visible = any(line.get_visible() for line in x_grid_lines)
+        assert x_grid_visible is True
+
+    def test_mixed_nominal_continuous_behavior(self, categorical_data):
+        """Test behavior when mixing Nominal and Continuous scales."""
+        p = (Plot(categorical_data, x="category", y="value")
+             .scale(x=Nominal(), y=Continuous())
+             .add(MockMark())
+             .plot())
+        ax = p._figure.axes[0]
+        
+        # X-axis (Nominal) should have correct limits and no grid
+        xlim = ax.get_xlim()
+        assert xlim == pytest.approx((-0.5, 3.5), abs=0.01)
+        
+        x_grid_lines = ax.xaxis.get_gridlines()
+        x_grid_visible = any(line.get_visible() for line in x_grid_lines)
+        assert x_grid_visible is False
+        
+        # Y-axis (Continuous) should have grid enabled
+        y_grid_lines = ax.yaxis.get_gridlines()
+        y_grid_visible = any(line.get_visible() for line in y_grid_lines)
+        assert y_grid_visible is True
+
+    def test_multiple_categories_limits(self):
+        """Test limits with different numbers of categories."""
+        # Test with 2 categories
+        data_2 = pd.DataFrame({'cat': ['X', 'Y'], 'val': [1, 2]})
+        p = Plot(data_2, x="cat", y="val").scale(x=Nominal()).add(MockMark()).plot()
+        ax = p._figure.axes[0]
+        xlim = ax.get_xlim()
+        assert xlim == pytest.approx((-0.5, 1.5), abs=0.01)
+        
+        # Test with 6 categories
+        data_6 = pd.DataFrame({'cat': ['A', 'B', 'C', 'D', 'E', 'F'], 'val': [1, 2, 3, 4, 5, 6]})
+        p = Plot(data_6, x="cat", y="val").scale(x=Nominal()).add(MockMark()).plot()
+        ax = p._figure.axes[0]
+        xlim = ax.get_xlim()
+        assert xlim == pytest.approx((-0.5, 5.5), abs=0.01)
